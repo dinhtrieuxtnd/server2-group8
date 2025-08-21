@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  dev-db:
+    image: postgres:15.0
+    container_name: dev-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: warehouse_db
+    ports:
+      - "5432:5432"
+    networks:
+      - nestjs-network
+networks:
+  nestjs-network:

@@ -1,0 +1,211 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Product {
+  id           BigInt   @id @default(autoincrement())
+  sku          String   @unique @db.VarChar(64)
+  name         String   @db.VarChar(255)
+  category_id  BigInt?  
+  brand_id     BigInt?
+  unit         String   @default("pcs") @db.VarChar(16)
+  cost_price   Decimal  @default(0.0) @db.Decimal(18, 2)
+  sell_price   Decimal  @default(0.0) @db.Decimal(18, 2)
+  min_stock    Decimal  @default(0.0) @db.Decimal(18, 3)
+  barcode      String?  @db.VarChar(64)
+  status       String   @default("active") @db.VarChar(16)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+
+  supplier_products SupplierProduct[]
+  inventories       Inventory[]
+  stock_movements   StockMovement[]
+  purchase_items    PurchaseOrderItem[]
+  sales_items       SalesOrderItem[]
+
+  @@map("products")
+}
+
+model Supplier {
+  id        BigInt   @id @default(autoincrement())
+  name      String   @unique @db.VarChar(255)
+  tax_code  String?  @db.VarChar(64)
+  email     String?  @db.VarChar(255)
+  phone     String?  @db.VarChar(64)
+  address   String?
+  status    String   @default("active") @db.VarChar(16)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  supplier_products SupplierProduct[]
+  purchase_orders   PurchaseOrder[]
+
+  @@map("suppliers")
+}
+
+model SupplierProduct {
+  supplier_id    BigInt
+  product_id     BigInt
+  supplier_sku   String? @db.VarChar(64)
+  lead_time_days Int?    @default(0)
+  last_cost_price Decimal @default(0.0) @db.Decimal(18,2)
+
+  supplier Supplier @relation(fields: [supplier_id], references: [id])
+  product  Product  @relation(fields: [product_id], references: [id])
+
+  @@id([supplier_id, product_id])
+  @@map("supplier_products")
+}
+
+model Warehouse {
+  id        BigInt   @id @default(autoincrement())
+  code      String   @unique @db.VarChar(32)
+  name      String   @db.VarChar(255)
+  address   String?
+  status    String   @default("active") @db.VarChar(16)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+
+  inventories     Inventory[]
+  stock_movements StockMovement[]
+  purchase_orders PurchaseOrder[]
+  sales_orders    SalesOrder[]
+
+  @@map("warehouses")
+}
+
+model Inventory {
+  warehouse_id BigInt
+  product_id   BigInt
+  qty_on_hand  Decimal @default(0.0) @db.Decimal(18,3)
+  qty_reserved Decimal @default(0.0) @db.Decimal(18,3)
+
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
+  product   Product   @relation(fields: [product_id], references: [id])
+
+  @@id([warehouse_id, product_id])
+  @@map("inventory")
+}
+
+model StockMovement {
+  id           BigInt   @id @default(autoincrement())
+  warehouse_id BigInt
+  product_id   BigInt
+  type         String   @db.VarChar(32)
+  quantity     Decimal  @db.Decimal(18,3)
+  ref_type     String?  @db.VarChar(16)
+  ref_id       BigInt?
+  note         String?
+  created_at   DateTime @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
+  product   Product   @relation(fields: [product_id], references: [id])
+
+  @@map("stock_movements")
+}
+
+model PurchaseOrder {
+  id            BigInt   @id @default(autoincrement())
+  code          String   @unique @db.VarChar(32)
+  supplier_id   BigInt
+  warehouse_id  BigInt
+  order_date    DateTime
+  expected_date DateTime?
+  status        String   @default("draft") @db.VarChar(16)
+  currency      String?  @default("VND") @db.VarChar(8)
+  exchange_rate Decimal  @default(1.0) @db.Decimal(18,6)
+  subtotal      Decimal  @default(0.0) @db.Decimal(18,2)
+  tax_total     Decimal  @default(0.0) @db.Decimal(18,2)
+  discount_total Decimal @default(0.0) @db.Decimal(18,2)
+  total_amount  Decimal  @default(0.0) @db.Decimal(18,2)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+
+  supplier Supplier @relation(fields: [supplier_id], references: [id])
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
+  items    PurchaseOrderItem[]
+
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderItem {
+  id               BigInt   @id @default(autoincrement())
+  purchase_order_id BigInt
+  product_id       BigInt
+  unit_price       Decimal  @db.Decimal(18,2)
+  qty_ordered      Decimal  @db.Decimal(18,3)
+  qty_received     Decimal  @default(0.0) @db.Decimal(18,3)
+  tax_percent      Decimal? @default(0.0) @db.Decimal(5,2)
+  discount_percent Decimal? @default(0.0) @db.Decimal(5,2)
+
+  purchase_order PurchaseOrder @relation(fields: [purchase_order_id], references: [id], onDelete: Cascade)
+  product        Product       @relation(fields: [product_id], references: [id])
+
+  @@map("purchase_order_items")
+}
+
+model SalesOrder {
+  id            BigInt   @id @default(autoincrement())
+  code          String   @unique @db.VarChar(32)
+  customer_id   BigInt?
+  warehouse_id  BigInt
+  order_date    DateTime
+  status        String   @default("pending") @db.VarChar(16)
+  subtotal      Decimal  @default(0.0) @db.Decimal(18,2)
+  tax_total     Decimal  @default(0.0) @db.Decimal(18,2)
+  discount_total Decimal @default(0.0) @db.Decimal(18,2)
+  total_amount  Decimal  @default(0.0) @db.Decimal(18,2)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @default(now())
+
+  warehouse Warehouse @relation(fields: [warehouse_id], references: [id])
+  items     SalesOrderItem[]
+
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id              BigInt   @id @default(autoincrement())
+  sales_order_id  BigInt
+  product_id      BigInt
+  unit_price      Decimal  @db.Decimal(18,2)
+  qty_ordered     Decimal  @db.Decimal(18,3)
+  qty_allocated   Decimal  @default(0.0) @db.Decimal(18,3)
+  qty_shipped     Decimal  @default(0.0) @db.Decimal(18,3)
+  tax_percent     Decimal? @default(0.0) @db.Decimal(5,2)
+  discount_percent Decimal? @default(0.0) @db.Decimal(5,2)
+
+  sales_order SalesOrder @relation(fields: [sales_order_id], references: [id], onDelete: Cascade)
+  product     Product    @relation(fields: [product_id], references: [id])
+
+  @@map("sales_order_items")
+}
+
+model User {
+  id             BigInt         @id @default(autoincrement())
+  username       String         @unique @db.VarChar(64)
+  email          String         @unique @db.VarChar(255)
+  password_hash  String         @db.VarChar(255)
+  full_name      String?        @db.VarChar(255)
+  role           String         @default("user") @db.VarChar(32)
+  status         String         @default("active") @db.VarChar(16)
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  refresh_tokens RefreshToken[]
+}
+
+model RefreshToken {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt
+  token      String   @db.VarChar(512)
+  expires_at DateTime
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
